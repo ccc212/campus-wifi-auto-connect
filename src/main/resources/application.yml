@@ -2,6 +2,6 @@ wifi:
 # 连接的wifi名
   name: "海大校园网"
 #  账号
-  username: ""
+  username: "123"
 #  密码
-  password: ""
+  password: "123"

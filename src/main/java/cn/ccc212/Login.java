@@ -1,20 +1,15 @@
 package cn.ccc212;
 
+import cn.ccc212.utils.EncryptionUtil;
+import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
 import okhttp3.*;
 import org.apache.tomcat.util.buf.HexUtils;
 import org.jsoup.Jsoup;
-import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.crypto.Mac;

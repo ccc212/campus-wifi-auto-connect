@@ -1,5 +1,6 @@
 package cn.ccc212;
 
+import cn.ccc212.utils.NetworkUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,9 +18,20 @@ public class CheckTask {
     //每10秒执行一次
     @Scheduled(cron = "*/10 * * * * ?")
     public void check(){
-        if (!NetworkUtil.isWifiConnected()) {
-            NetworkUtil.connectToWifi(wifiName);
-            System.out.println(login.login());
+        try {
+            String ssid = NetworkUtil.getSSID(NetworkUtil.checkWifiStatus());
+            boolean wifiConnected = NetworkUtil.isWifiConnected();
+            System.out.println("ssid = " + ssid);
+            System.out.println("wifiConnected = " + wifiConnected);
+            if (ssid.equals(wifiName) && !wifiConnected) {
+                System.out.println(login.login());
+            }
+            else if (!ssid.equals(wifiName) && !wifiConnected) {
+                NetworkUtil.connectToWifi(wifiName);
+                System.out.println(login.login());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("connect error");
         }
     }
 }
