@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>校园网自动登录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            width: 760px;
+            height: 450px;
+            margin: 0;
+        }
+
+        .start-container, .config-container {
+            padding: 40px;
+            display: none;
+            box-sizing: border-box;
+            /*background-color: red;*/
+        }
+
+        .active {
+            display: block;
+        }
+
+        .start-container h2, .config-container h2 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .start-container form, .config-container form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .start-container label, .config-container label {
+            width: 150px;
+            text-align: left;
+        }
+
+        .start-container input, .config-container input, .config-container select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .start-container button, .config-container button {
+            width: 30%;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .start-container button:hover, .config-container button:hover {
+            opacity: 0.8;
+        }
+
+        .start-button {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .start-button:hover {
+            background-color: #0056b3;
+        }
+
+        .stop-button {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .stop-button:hover {
+            background-color: #c82333;
+        }
+
+        .save-button {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .save-button:hover {
+            background-color: #0056b3;
+        }
+
+        .choose {
+            position: absolute;
+            top: 0;
+            left: 20px;
+        }
+
+        .change-btm {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .change-btm:hover {
+            background-color: #218838;
+        }
+
+        .timer {
+            font-size: 1.2em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="choose">
+    <button class="change-btm" onclick="showStartPage()">登录</button>
+    <button class="change-btm" onclick="showConfigPage()">配置</button>
+</div>
+<div class="start-container active" id="startPage">
+    <h2>校园网自动登录</h2>
+
+    <form id="startForm">
+        <div class="form-group">
+            <label for="networkName">校园网名称</label>
+            <input type="text" id="networkName" name="networkName" required placeholder="必填"/>
+        </div>
+
+        <div class="form-group">
+            <label for="username">账号</label>
+            <input type="text" id="username" name="username" required placeholder="必填"/>
+        </div>
+
+        <div class="form-group">
+            <label for="password">密码</label>
+            <input type="password" id="password" name="password" required placeholder="必填"/>
+        </div>
+
+        <div class="form-group">
+            <label for="srcIp">用户IPv4地址</label>
+            <input type="text" id="srcIp" name="srcIp" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
+        </div>
+
+        <div class="form-group">
+            <label for="dstIp">校园网IPv4地址</label>
+            <input type="text" id="dstIp" name="dstIp" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
+        </div>
+
+        <button type="button" id="toggleButton" class="start-button" onclick="toggle()">启动</button>
+        <div class="timer" id="timer" style="display: none;">
+            运行时长: <span id="duration">00:00:00</span>
+        </div>
+    </form>
+</div>
+
+<div class="config-container" id="configPage">
+    <h2>配置</h2>
+    <form id="configForm">
+        <div class="form-group">
+            <label for="startTime">启动时间</label>
+            <input type="time" id="startTime" name="startTime" required/>
+        </div>
+
+        <div class="form-group">
+            <label for="endTime">关闭时间</label>
+            <input type="time" id="endTime" name="endTime" required/>
+        </div>
+
+        <div class="form-group">
+            <label for="interval">执行间隔（秒）</label>
+            <input type="number" id="interval" name="interval" required/>
+        </div>
+
+        <div class="form-group">
+            <label for="autoSelect">是否开启自动选择校园网</label>
+            <select id="autoSelect" name="autoSelect" required>
+                <option value="true">开启</option>
+                <option value="false">关闭</option>
+            </select>
+        </div>
+
+        <button type="button" class="save-button" onclick="saveConfig()">保存配置</button>
+    </form>
+</div>
+
+<script>
+    new Sys({
+        log: true,
+        wsUrl: undefined
+    }).then(async main => {
+        globalThis.native = main.native
+        globalThis.nativeMain = main.nativeMain
+    })
+    let isRunning = false;
+    let timerId = null;
+    let startTime = null;
+
+    window.onload = function() {
+        if (!localStorage.getItem("startTime")) {
+            localStorage.setItem("startTime", "07:00");
+        }
+        if (!localStorage.getItem("endTime")) {
+            localStorage.setItem("endTime", "23:30");
+        }
+        if (!localStorage.getItem("interval")) {
+            localStorage.setItem("interval", 10);
+        }
+        if (!localStorage.getItem("autoSelect")) {
+            localStorage.setItem("autoSelect", "true");
+        }
+
+        document.getElementById("startTime").value = localStorage.getItem("startTime");
+        document.getElementById("endTime").value = localStorage.getItem("endTime");
+        document.getElementById("interval").value = localStorage.getItem("interval");
+        document.getElementById("autoSelect").value = localStorage.getItem("autoSelect");
+    };
+
+    function showConfigPage() {
+        document.getElementById("startPage").classList.remove("active");
+        document.getElementById("configPage").classList.add("active");
+    }
+
+    function showStartPage() {
+        document.getElementById("configPage").classList.remove("active");
+        document.getElementById("startPage").classList.add("active");
+    }
+
+    function toggle() {
+        const networkName = document.getElementById("networkName").value;
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+
+        if (!networkName || !username || !password) {
+            native.win.msgbox(`请确保校园网名称、账号和密码已填写`, `error`);
+            return;
+        }
+
+        const button = document.getElementById("toggleButton");
+        const timerElement = document.getElementById("timer");
+
+        if (isRunning) {
+            // 停止
+            button.textContent = "启动";
+            button.classList.remove("stop-button");
+            button.classList.add("start-button");
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+            }
+            timerElement.style.display = "none";
+
+            isRunning = false;
+            console.log("停止");
+        } else {
+            // 启动
+            button.textContent = "关闭";
+            button.classList.remove("start-button");
+            button.classList.add("stop-button");
+            timerElement.style.display = "block";
+            startTime = new Date();
+
+            isRunning = true;
+            console.log("启动");
+            start();
+            startTimer();
+        }
+    }
+
+    function start() {
+        const networkName = document.getElementById("networkName").value;
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        const srcIp = document.getElementById("srcIp").value;
+        const dstIp = document.getElementById("dstIp").value;
+
+        const data = {
+            networkName,
+            username,
+            password,
+            srcIp,
+            dstIp,
+        };
+
+        console.log("发送登录请求:", data);
+
+        localStorage.setItem("networkName", networkName);
+        localStorage.setItem("username", username);
+        localStorage.setItem("password", password);
+        localStorage.setItem("srcIp", srcIp);
+        localStorage.setItem("dstIp", dstIp);
+    }
+
+    function startTimer() {
+        const durationElement = document.getElementById("duration");
+        timerId = setInterval(() => {
+            const now = new Date();
+            const elapsed = new Date(now - startTime);
+
+            const hours = String(elapsed.getUTCHours()).padStart(2, '0');
+            const minutes = String(elapsed.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(elapsed.getUTCSeconds()).padStart(2, '0');
+
+            durationElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }, 1000);
+    }
+
+    function saveConfig() {
+        const startTime = document.getElementById("startTime").value;
+        const endTime = document.getElementById("endTime").value;
+        const interval = document.getElementById("interval").value;
+        const autoSelect = document.getElementById("autoSelect").value;
+
+        if (!startTime || !endTime || !interval || !autoSelect) {
+            native.win.msgbox(`请确保所有配置项都已填写`, `error`);
+            return;
+        }
+
+        localStorage.setItem("startTime", startTime);
+        localStorage.setItem("endTime", endTime);
+        localStorage.setItem("interval", interval);
+        localStorage.setItem("autoSelect", autoSelect);
+
+        native.win.msgbox(`配置已保存`, `info`);
+    }
+</script>
+</body>
+</html>

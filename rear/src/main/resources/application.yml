@@ -1,0 +1,12 @@
+port: 56565
+wifi:
+# 连接的wifi名
+  name: "海大校园网"
+#  账号
+  username: "123"
+#  密码
+  password: "123"
+#  用户IPv4地址
+  src_ip: ""
+#  校园网IPv4地址
+  dst_ip: ""
