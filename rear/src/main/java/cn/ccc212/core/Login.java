@@ -1,13 +1,14 @@
-package cn.ccc212;
+package cn.ccc212.core;
 
+import cn.ccc212.pojo.BaseDTO;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
-import okhttp3.*;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.apache.tomcat.util.buf.HexUtils;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
+import org.jsoup.internal.StringUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -23,13 +24,13 @@ public class Login {
     private String loginPage;
     private String callbackPrefix;
     private String challenge;
-    private String action = "login";
+    private final String action = "login";
     private String hmacMd5password;
     private String chksum;
     private String info;
     private String ac_id;
-    private String n = "200";
-    private String type = "1";
+    private final String n = "200";
+    private final String type = "1";
     private String enc = "srun_bx1";
     private String srcIp;
     private String dstIp;
@@ -44,13 +45,40 @@ public class Login {
     {
         srcIp = NetworkUtil.getIPv4();
         setDstIpAndAcId();
+    }
+
+    @SneakyThrows
+    private void init(BaseDTO baseDTO) {
+        if (!StringUtil.isBlank(baseDTO.getUsername())) {
+            username = baseDTO.getUsername();
+        }
+        if (!StringUtil.isBlank(baseDTO.getPassword())) {
+            password = baseDTO.getPassword();
+        }
+
+        if (!StringUtil.isBlank(baseDTO.getSrcIp())) {
+            srcIp = baseDTO.getSrcIp();
+        }
+        else if (StringUtil.isBlank(srcIp)) {
+            srcIp = NetworkUtil.getIPv4();
+        }
+
+//        if (!StringUtil.isBlank(baseDTO.getDstIp())) {
+//            dstIp = baseDTO.getDstIp();
+//            String gatewayUrl = "http://" + dstIp;
+//            HttpURLConnection connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
+//            connection.setInstanceFollowRedirects(false);
+//            connection.connect();
+//            setAcId(connection.getHeaderField("Location"));
+//        }
+//        else if (StringUtil.isBlank(dstIp)) {
+//            dstIp = NetworkUtil.getGateway();
+//        }
+
         System.out.println("srcIp = " + srcIp);
         System.out.println("dstIp = " + dstIp);
         System.out.println("ac_id = " + ac_id);
-    }
-
-    private void init() {
-        callbackPrefix = "jQuery112405644064296283513_";
+        callbackPrefix = "jQuery112405644064296283513";
         loginPage = "http://" + dstIp + "/srun_portal_pc?ac_id=" + ac_id + "&theme=bit";
         challenge = getChallenge();
         info = getInfo();
@@ -67,31 +95,42 @@ public class Login {
         connection.connect();
         //获取跳转后的URL
         String redirectHtml = connection.getHeaderField("Location");
+        System.out.println("redirectHtml = " + redirectHtml);
         connection.disconnect();
 
         if (redirectHtml != null) {
             dstIp = new URL(redirectHtml).getHost();
-
-            //访问页面并获取HTML内容
-            Document doc = Jsoup.connect(redirectHtml).get();
-            //查找页面中的跳转链接
-            Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
-            if (metaRefresh != null) {
-                //提取URL
-                String content = metaRefresh.attr("content");
-                String redirectUrl = content.split("url=")[1];
-
-                String[] queryParams = redirectUrl.split("\\?")[1].split("&");
-                for (String queryParam : queryParams) {
-                    if (queryParam.startsWith("ac_id=")) {
-                        ac_id = queryParam.split("=")[1];
-                        break;
-                    }
-                }
-            }
-
+            setAcId(redirectHtml);
         } else {
             System.out.println("无重定向");
+        }
+    }
+
+    @SneakyThrows
+    private void setAcId(String redirectHtml) {
+//        //访问页面并获取HTML内容
+//        Document doc = Jsoup.connect(redirectHtml).get();
+//        //查找页面中的跳转链接
+//        Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
+//        if (metaRefresh != null) {
+//            //提取URL
+//            String content = metaRefresh.attr("content");
+//            String redirectUrl = content.split("url=")[1];
+//
+//            String[] queryParams = redirectUrl.split("\\?")[1].split("&");
+//            for (String queryParam : queryParams) {
+//                if (queryParam.startsWith("ac_id=")) {
+//                    ac_id = queryParam.split("=")[1];
+//                    break;
+//                }
+//            }
+//        }
+        String[] split = redirectHtml.split("/");
+        for (String s : split) {
+            if (s.startsWith("index_")) {
+                ac_id = s.split("\\.")[0].replaceAll("index_", "");
+                return;
+            }
         }
     }
 
@@ -100,7 +139,7 @@ public class Login {
     @SneakyThrows
     private String getChallenge() {
         String challengeUrl = UriComponentsBuilder.fromHttpUrl("http://" + dstIp + "/cgi-bin/get_challenge")
-                .queryParam("callback", "jsonp1583251661367")
+                .queryParam("callback", callbackPrefix)
                 .queryParam("username", username)
                 .queryParam("ip", srcIp)
                 .toUriString();
@@ -158,11 +197,11 @@ public class Login {
 
     //发送登录请求
     @SneakyThrows
-    public String login() {
-        init();
+    public String login(BaseDTO baseDTO) {
+        init(baseDTO);
 
         String loginUrl = UriComponentsBuilder.fromHttpUrl("http://" + dstIp + "/cgi-bin/srun_portal")
-                .queryParam("callback", "jsonp1583251661368")
+                .queryParam("callback", callbackPrefix)
                 .queryParam("action", action)
                 .queryParam("username", username)
                 .queryParam("password", "{MD5}" + hmacMd5password)

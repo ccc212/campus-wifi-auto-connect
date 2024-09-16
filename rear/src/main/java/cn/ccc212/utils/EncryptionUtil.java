@@ -8,15 +8,6 @@ import java.util.Map;
 
 public class EncryptionUtil {
 
-    private static final String ALPHA = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA";
-    private static final char PADCHAR = '=';
-
-    //获取字符的字节值
-    private static int getByte(String s, int i) {
-        int x = s.charAt(i);
-        return x;
-    }
-
     //TEA加密算法
     public static String encode(String str, String key) {
         if (str.isEmpty()) return "";
@@ -25,7 +16,7 @@ public class EncryptionUtil {
         if (k.length < 4) k = new int[]{k[0], k[1], 0, 0}; // 确保key长度为4
         int n = v.length - 1;
         int z = v[n];
-        int y = v[0];
+        int y;
         int c = 0x86014019 | 0x183639A0;
         int m, e, p;
         int q = (int) Math.floor(6 + 52.0 / (n + 1));
@@ -79,6 +70,7 @@ public class EncryptionUtil {
     }
 
     //将int数组转换为字符串
+    @SuppressWarnings("all")
     private static String l(int[] a, boolean b) {
         int d = a.length;
         int c = (d - 1) << 2;
@@ -91,11 +83,11 @@ public class EncryptionUtil {
         StringBuilder result = new StringBuilder();
 
         //将每个整数转换为对应的4个字节字符
-        for (int i = 0; i < d; i++) {
-            result.append((char) (a[i] & 0xff));
-            result.append((char) ((a[i] >>> 8) & 0xff));
-            result.append((char) ((a[i] >>> 16) & 0xff));
-            result.append((char) ((a[i] >>> 24) & 0xff));
+        for (int j : a) {
+            result.append((char) (j & 0xff));
+            result.append((char) ((j >>> 8) & 0xff));
+            result.append((char) ((j >>> 16) & 0xff));
+            result.append((char) ((j >>> 24) & 0xff));
         }
         return b ? result.substring(0, c) : result.toString();
     }
@@ -114,7 +106,7 @@ public class EncryptionUtil {
         String encode = encode(infoJson, token);
         System.out.println("tempt: " + encode);
 
-        String s = "{SRBX1}" + Base64EncoderUtil.getBase64(encode);
+        String s = "{SRBX1}" + Base64Util.getBase64(encode);
         System.out.println("temptt: " + s);
         return s;
     }

@@ -1,14 +1,21 @@
 package cn.ccc212;
 
+import cn.ccc212.core.Login;
+import cn.ccc212.pojo.BaseDTO;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
 import org.apache.tomcat.util.buf.HexUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.MessageDigest;
 
 @SpringBootTest
@@ -67,8 +74,46 @@ class CampusWifiAutoConnectApplicationTests {
     @Test
     public void testLogin() {
 //        NetworkUtil.connectToWifi(wifiName);
-        System.out.println(login.login());
+        System.out.println(login.login(BaseDTO.builder().build()));
     }
+
+    @Test
+    @SneakyThrows
+    public void test() {
+        String gatewayUrl = "http://" + "10.129.1.1";
+        HttpURLConnection connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
+        connection.setInstanceFollowRedirects(false);
+        connection.connect();
+        String redirectHtml = connection.getHeaderField("Location");
+        System.out.println("redirectHtml = " + redirectHtml);
+
+        HttpURLConnection connection2 = (HttpURLConnection) new URL(redirectHtml).openConnection();
+        connection2.setInstanceFollowRedirects(false);
+        connection2.connect();
+        String redirectHtml2 = connection2.getHeaderField("Location");
+        System.out.println("redirectHtml2 = " + redirectHtml2);
+
+//        //访问页面并获取HTML内容
+//        Document doc = Jsoup.connect(redirectHtml).get();
+//        //查找页面中的跳转链接
+//        Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
+//        if (metaRefresh != null) {
+//            //提取URL
+//            String content = metaRefresh.attr("content");
+//            String redirectUrl = content.split("url=")[1];
+//            System.out.println("redirectUrl = " + redirectUrl);
+//
+//            String[] queryParams = redirectUrl.split("\\?")[1].split("&");
+//            for (String queryParam : queryParams) {
+//                if (queryParam.startsWith("ac_id=")) {
+//                    System.out.println("queryParam = " + queryParam);
+//                    System.out.println(queryParam.split("=")[1]);
+//                    break;
+//                }
+//            }
+//        }
+    }
+
 
     @Test
     public void testGetInfo() {
