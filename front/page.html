@@ -12,10 +12,9 @@
         }
 
         .start-container, .config-container {
-            padding: 40px;
+            padding: 40px 40px 0 40px;
             display: none;
             box-sizing: border-box;
-            /*background-color: red;*/
         }
 
         .active {
@@ -150,7 +149,12 @@
             <input type="text" id="dstIp" name="dstIp" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
         </div>
 
-        <button type="button" id="toggleButton" class="start-button" onclick="toggle()">启动</button>
+        <div class="form-group">
+            <label for="dstIp">ac_id</label>
+            <input type="text" id="acId" name="acId" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
+        </div>
+
+        <button type="button" id="changeButton" class="start-button" onclick="change()">启动</button>
         <div class="timer" id="timer" style="display: none;">
             运行时长: <span id="duration">00:00:00</span>
         </div>
@@ -195,11 +199,12 @@
         globalThis.native = main.native
         globalThis.nativeMain = main.nativeMain
     })
+
     let isRunning = false;
     let timerId = null;
     let startTime = null;
 
-    window.onload = function() {
+    window.onload = function () {
         if (!localStorage.getItem("startTime")) {
             localStorage.setItem("startTime", "07:00");
         }
@@ -229,7 +234,7 @@
         document.getElementById("startPage").classList.add("active");
     }
 
-    function toggle() {
+    function change() {
         const networkName = document.getElementById("networkName").value;
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
@@ -239,34 +244,83 @@
             return;
         }
 
-        const button = document.getElementById("toggleButton");
-        const timerElement = document.getElementById("timer");
-
         if (isRunning) {
-            // 停止
-            button.textContent = "启动";
-            button.classList.remove("stop-button");
-            button.classList.add("start-button");
-            if (timerId) {
-                clearInterval(timerId);
-                timerId = null;
-            }
-            timerElement.style.display = "none";
-
-            isRunning = false;
-            console.log("停止");
+            stopService();
         } else {
-            // 启动
-            button.textContent = "关闭";
-            button.classList.remove("start-button");
-            button.classList.add("stop-button");
-            timerElement.style.display = "block";
-            startTime = new Date();
+            startService(networkName, username, password, null, null, null);
+        }
+    }
 
-            isRunning = true;
-            console.log("启动");
-            start();
-            startTimer();
+    async function startService(networkName, username, password, srcIp, dstIp, acId) {
+        try {
+            const response = await fetch('http://localhost:56565/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    networkName: networkName,
+                    username: username,
+                    password: password,
+                    srcIp: srcIp,
+                    dstIp: dstIp,
+                    acId: acId
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                native.win.msgbox(result.message || "启动成功", "info");
+
+                // 更新按钮和定时器状态
+                document.getElementById("changeButton").textContent = "关闭";
+                document.getElementById("changeButton").classList.remove("start-button");
+                document.getElementById("changeButton").classList.add("stop-button");
+                document.getElementById("timer").style.display = "block";
+                startTime = new Date();
+                isRunning = true;
+                start();
+                startTimer();
+            } else {
+                const error = await response.json();
+                native.win.msgbox(error.message || "启动失败", "error");
+            }
+        } catch (error) {
+            console.error("启动服务时出错:", error);
+            native.win.msgbox("启动服务时出错", "error");
+        }
+    }
+
+    async function stopService() {
+        try {
+            const response = await fetch('http://localhost:56565/stop', {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                native.win.msgbox(result.message || "暂停成功", "info");
+
+                // 更新按钮和定时器状态
+                const button = document.getElementById("changeButton");
+                button.textContent = "启动";
+                button.classList.remove("stop-button");
+                button.classList.add("start-button");
+                const timerElement = document.getElementById("timer");
+                timerElement.style.display = "none";
+                if (timerId) {
+                    clearInterval(timerId);
+                    timerId = null;
+                }
+                isRunning = false;
+                console.log("停止");
+            } else {
+                const error = await response.json();
+                native.win.msgbox(error.message || "暂停失败", "error");
+            }
+        } catch (error) {
+            console.error("暂停服务时出错:", error);
+            native.win.msgbox("暂停服务时出错", "error");
         }
     }
 
@@ -308,7 +362,7 @@
         }, 1000);
     }
 
-    function saveConfig() {
+    async function saveConfig() {
         const startTime = document.getElementById("startTime").value;
         const endTime = document.getElementById("endTime").value;
         const interval = document.getElementById("interval").value;
@@ -323,6 +377,23 @@
         localStorage.setItem("endTime", endTime);
         localStorage.setItem("interval", interval);
         localStorage.setItem("autoSelect", autoSelect);
+
+        const configDTO = {startTime, endTime, interval, autoSelect};
+
+        try {
+            const response = await fetch('http://localhost:56565/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(configDTO)
+            });
+            const result = await response.json();
+            native.win.msgbox(result.message, `info`);
+        } catch (error) {
+            console.error('配置请求失败', error);
+            native.win.msgbox('配置请求失败', `error`);
+        }
 
         native.win.msgbox(`配置已保存`, `info`);
     }

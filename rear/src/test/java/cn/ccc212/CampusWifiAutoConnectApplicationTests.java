@@ -18,7 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
 
-@SpringBootTest
+//@SpringBootTest
 class CampusWifiAutoConnectApplicationTests {
 
     @Value("${wifi.name}")
@@ -74,7 +74,7 @@ class CampusWifiAutoConnectApplicationTests {
     @Test
     public void testLogin() {
 //        NetworkUtil.connectToWifi(wifiName);
-        System.out.println(login.login(BaseDTO.builder().build()));
+        System.out.println(login.login());
     }
 
     @Test
@@ -129,6 +129,14 @@ class CampusWifiAutoConnectApplicationTests {
     @Test
     public void testGetGateway() {
         System.out.println(NetworkUtil.getGateway());
+    }
+
+    @Test
+    public void testGetSsid() {
+        String status = NetworkUtil.checkWifiStatus();
+        System.out.println("status = " + status);
+        String ssid = NetworkUtil.getSSID(status);
+        System.out.println("ssid = " + ssid);
     }
 
 }

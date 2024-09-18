@@ -7,7 +7,7 @@ import lombok.Data;
 @Builder
 public class BaseDTO {
 
-    private String name;
+    private String networkName;
 
     private String username;
 
@@ -16,4 +16,6 @@ public class BaseDTO {
     private String srcIp;
 
     private String dstIp;
+
+    private String acId;
 }

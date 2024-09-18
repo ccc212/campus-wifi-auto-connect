@@ -1,6 +1,8 @@
 package cn.ccc212.core;
 
+import cn.ccc212.exception.BizException;
 import cn.ccc212.pojo.BaseDTO;
+import cn.ccc212.utils.CommonUtil;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
@@ -15,7 +17,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.MessageDigest;
 
@@ -31,7 +35,7 @@ public class Login {
     private String ac_id;
     private final String n = "200";
     private final String type = "1";
-    private String enc = "srun_bx1";
+    private final String enc = "srun_bx1";
     private String srcIp;
     private String dstIp;
 
@@ -42,19 +46,24 @@ public class Login {
 
     private OkHttpClient client = new OkHttpClient().newBuilder().build();
 
-    {
-        srcIp = NetworkUtil.getIPv4();
-        setDstIpAndAcId();
+    private final Object lock = new Object();
+
+//    {
+//        srcIp = NetworkUtil.getIPv4();
+//        setDstIpAndAcId();
+//    }
+
+    public void getDefaultIp() {
+        synchronized (lock) {
+            srcIp = NetworkUtil.getIPv4();
+            setDstIpAndAcId();
+        }
     }
 
-    @SneakyThrows
-    private void init(BaseDTO baseDTO) {
-        if (!StringUtil.isBlank(baseDTO.getUsername())) {
-            username = baseDTO.getUsername();
-        }
-        if (!StringUtil.isBlank(baseDTO.getPassword())) {
-            password = baseDTO.getPassword();
-        }
+    public void setBase(BaseDTO baseDTO) {
+        username = CommonUtil.getValueOrDefault(baseDTO.getUsername(), () -> username);
+        password = CommonUtil.getValueOrDefault(baseDTO.getPassword(), () -> password);
+        dstIp = CommonUtil.getValueOrDefault(baseDTO.getDstIp(), () -> dstIp);
 
         if (!StringUtil.isBlank(baseDTO.getSrcIp())) {
             srcIp = baseDTO.getSrcIp();
@@ -63,18 +72,16 @@ public class Login {
             srcIp = NetworkUtil.getIPv4();
         }
 
-//        if (!StringUtil.isBlank(baseDTO.getDstIp())) {
-//            dstIp = baseDTO.getDstIp();
-//            String gatewayUrl = "http://" + dstIp;
-//            HttpURLConnection connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
-//            connection.setInstanceFollowRedirects(false);
-//            connection.connect();
-//            setAcId(connection.getHeaderField("Location"));
-//        }
-//        else if (StringUtil.isBlank(dstIp)) {
-//            dstIp = NetworkUtil.getGateway();
-//        }
+        if (!StringUtil.isBlank(baseDTO.getAcId())) {
+            ac_id = baseDTO.getAcId();
+        }
+        else if (StringUtil.isBlank(ac_id)) {
+            setDstIpAndAcId();
+        }
+    }
 
+    @SneakyThrows
+    private void init() {
         System.out.println("srcIp = " + srcIp);
         System.out.println("dstIp = " + dstIp);
         System.out.println("ac_id = " + ac_id);
@@ -86,20 +93,33 @@ public class Login {
         chksum = getChksum();
     }
 
-    @SneakyThrows
     private void setDstIpAndAcId() {
         String gatewayUrl = "http://" + NetworkUtil.getGateway();
-        HttpURLConnection connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
+        HttpURLConnection connection;
+        System.out.println("gatewayUrl = " + gatewayUrl);
+        try {
+            connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         //设置重定向跟随行为
         connection.setInstanceFollowRedirects(false);
-        connection.connect();
+        try {
+            connection.connect();
+        } catch (Exception e) {
+            throw new BizException("无法连接网关:" + e.getMessage());
+        }
         //获取跳转后的URL
         String redirectHtml = connection.getHeaderField("Location");
         System.out.println("redirectHtml = " + redirectHtml);
         connection.disconnect();
 
         if (redirectHtml != null) {
-            dstIp = new URL(redirectHtml).getHost();
+            try {
+                dstIp = new URL(redirectHtml).getHost();
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
             setAcId(redirectHtml);
         } else {
             System.out.println("无重定向");
@@ -136,7 +156,6 @@ public class Login {
 
 
     //获取challenge值
-    @SneakyThrows
     private String getChallenge() {
         String challengeUrl = UriComponentsBuilder.fromHttpUrl("http://" + dstIp + "/cgi-bin/get_challenge")
                 .queryParam("callback", callbackPrefix)
@@ -150,8 +169,14 @@ public class Login {
                 .get()
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0")
                 .build();
-        Response response = client.newCall(request).execute();
-        String challengeResponse = response.body().string();
+        Response response;
+        String challengeResponse;
+        try {
+            response = client.newCall(request).execute();
+            challengeResponse = response.body().string();
+        } catch (Exception e) {
+            throw new BizException("无法连到校园网,请检查wifi是否连接校园网 或 在配置里开启自动选择校园网");
+        }
         System.out.println("challengeResponse = " + challengeResponse);
 
         return challengeResponse.replaceAll(".*\"challenge\":\"([^\"]+)\".*", "$1");
@@ -197,8 +222,8 @@ public class Login {
 
     //发送登录请求
     @SneakyThrows
-    public String login(BaseDTO baseDTO) {
-        init(baseDTO);
+    public String login() {
+        init();
 
         String loginUrl = UriComponentsBuilder.fromHttpUrl("http://" + dstIp + "/cgi-bin/srun_portal")
                 .queryParam("callback", callbackPrefix)
