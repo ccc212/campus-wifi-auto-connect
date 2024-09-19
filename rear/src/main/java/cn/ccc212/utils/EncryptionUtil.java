@@ -2,10 +2,12 @@ package cn.ccc212.utils;
 
 import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 public class EncryptionUtil {
 
     //TEA加密算法
@@ -104,10 +106,10 @@ public class EncryptionUtil {
         String infoJson = JSON.toJSONString(infoTemp);
 
         String encode = encode(infoJson, token);
-        System.out.println("tempt: " + encode);
+//        log.info("tempt: " + encode);
 
         String s = "{SRBX1}" + Base64Util.getBase64(encode);
-        System.out.println("temptt: " + s);
+//        log.info("temptt: " + s);
         return s;
     }
 }

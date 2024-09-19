@@ -1,5 +1,6 @@
-package cn.ccc212.exception;
+package cn.ccc212.handler;
 
+import cn.ccc212.exception.BizException;
 import cn.ccc212.pojo.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;

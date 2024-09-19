@@ -1,6 +1,7 @@
 server:
   port: 56565
 
+
 wifi:
 # 连接的wifi名
   name: "海大校园网"
@@ -21,3 +22,6 @@ wifi:
 #  是否开启自动选择校园网
   auto_select: ""
 
+logging:
+  file:
+    name: application.log

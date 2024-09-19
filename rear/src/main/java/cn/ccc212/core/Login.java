@@ -2,10 +2,10 @@ package cn.ccc212.core;
 
 import cn.ccc212.exception.BizException;
 import cn.ccc212.pojo.BaseDTO;
-import cn.ccc212.utils.CommonUtil;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -22,8 +22,10 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.function.Supplier;
 
 @Component
+@Slf4j
 public class Login {
     private String loginPage;
     private String callbackPrefix;
@@ -32,12 +34,13 @@ public class Login {
     private String hmacMd5password;
     private String chksum;
     private String info;
-    private String ac_id;
+    private String acId;
     private final String n = "200";
     private final String type = "1";
     private final String enc = "srun_bx1";
     private String srcIp;
     private String dstIp;
+    private boolean useRouter = false;
 
     @Value("${wifi.username}")
     private String username;
@@ -46,47 +49,51 @@ public class Login {
 
     private OkHttpClient client = new OkHttpClient().newBuilder().build();
 
-    private final Object lock = new Object();
-
-//    {
-//        srcIp = NetworkUtil.getIPv4();
-//        setDstIpAndAcId();
-//    }
-
     public void getDefaultIp() {
-        synchronized (lock) {
-            srcIp = NetworkUtil.getIPv4();
-            setDstIpAndAcId();
-        }
+        srcIp = NetworkUtil.getIPv4();
+        setDstIpAndAcId();
+    }
+
+    private String getValueOrDefault(String input, Supplier<String> defaultValueSupplier) {
+        return StringUtil.isBlank(input) ? defaultValueSupplier.get() : input;
     }
 
     public void setBase(BaseDTO baseDTO) {
-        username = CommonUtil.getValueOrDefault(baseDTO.getUsername(), () -> username);
-        password = CommonUtil.getValueOrDefault(baseDTO.getPassword(), () -> password);
-        dstIp = CommonUtil.getValueOrDefault(baseDTO.getDstIp(), () -> dstIp);
+        String dstIp = baseDTO.getDstIp();
+        String acId = baseDTO.getAcId();
 
-        if (!StringUtil.isBlank(baseDTO.getSrcIp())) {
-            srcIp = baseDTO.getSrcIp();
-        }
-        else if (StringUtil.isBlank(srcIp)) {
-            srcIp = NetworkUtil.getIPv4();
-        }
+        username = getValueOrDefault(baseDTO.getUsername(), () -> username);
+        password = getValueOrDefault(baseDTO.getPassword(), () -> password);
+        this.dstIp = getValueOrDefault(dstIp, () -> this.dstIp);
 
-        if (!StringUtil.isBlank(baseDTO.getAcId())) {
-            ac_id = baseDTO.getAcId();
+        if (!StringUtil.isBlank(acId)) {
+            this.acId = acId;
         }
-        else if (StringUtil.isBlank(ac_id)) {
+        else if (StringUtil.isBlank(acId)) {
             setDstIpAndAcId();
         }
+
+        useRouter = !StringUtil.isBlank(dstIp) || !StringUtil.isBlank(acId);
+        srcIp = useRouter ? getRouterIp() : NetworkUtil.getIPv4();
+    }
+
+    private String getRouterIp() {
+        srcIp = NetworkUtil.getIPv4();
+        String result = login();
+        return result.split("client_ip\":\"")[1].split("\"")[0];
     }
 
     @SneakyThrows
     private void init() {
-        System.out.println("srcIp = " + srcIp);
-        System.out.println("dstIp = " + dstIp);
-        System.out.println("ac_id = " + ac_id);
+        String ipv4 = NetworkUtil.getIPv4();
+        if (!srcIp.equals(ipv4) && !useRouter) {
+            srcIp = ipv4;
+        }
+        log.info("srcIp = " + srcIp);
+        log.info("dstIp = " + dstIp);
+        log.info("acId = " + acId);
         callbackPrefix = "jQuery112405644064296283513";
-        loginPage = "http://" + dstIp + "/srun_portal_pc?ac_id=" + ac_id + "&theme=bit";
+        loginPage = "http://" + dstIp + "/srun_portal_pc?acId=" + acId + "&theme=bit";
         challenge = getChallenge();
         info = getInfo();
         hmacMd5password = hmacMd5("", challenge);
@@ -96,7 +103,6 @@ public class Login {
     private void setDstIpAndAcId() {
         String gatewayUrl = "http://" + NetworkUtil.getGateway();
         HttpURLConnection connection;
-        System.out.println("gatewayUrl = " + gatewayUrl);
         try {
             connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
         } catch (IOException e) {
@@ -107,11 +113,11 @@ public class Login {
         try {
             connection.connect();
         } catch (Exception e) {
-            throw new BizException("无法连接网关:" + e.getMessage());
+            throw new BizException("无法连接网关,可能还未连接到校园网,请关闭并重新启动自动登录;或是使用路由器却未设置acId");
         }
         //获取跳转后的URL
         String redirectHtml = connection.getHeaderField("Location");
-        System.out.println("redirectHtml = " + redirectHtml);
+        log.info("redirectHtml = " + redirectHtml);
         connection.disconnect();
 
         if (redirectHtml != null) {
@@ -122,33 +128,16 @@ public class Login {
             }
             setAcId(redirectHtml);
         } else {
-            System.out.println("无重定向");
+            log.info("无重定向");
         }
     }
 
     @SneakyThrows
     private void setAcId(String redirectHtml) {
-//        //访问页面并获取HTML内容
-//        Document doc = Jsoup.connect(redirectHtml).get();
-//        //查找页面中的跳转链接
-//        Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
-//        if (metaRefresh != null) {
-//            //提取URL
-//            String content = metaRefresh.attr("content");
-//            String redirectUrl = content.split("url=")[1];
-//
-//            String[] queryParams = redirectUrl.split("\\?")[1].split("&");
-//            for (String queryParam : queryParams) {
-//                if (queryParam.startsWith("ac_id=")) {
-//                    ac_id = queryParam.split("=")[1];
-//                    break;
-//                }
-//            }
-//        }
         String[] split = redirectHtml.split("/");
         for (String s : split) {
             if (s.startsWith("index_")) {
-                ac_id = s.split("\\.")[0].replaceAll("index_", "");
+                acId = s.split("\\.")[0].replaceAll("index_", "");
                 return;
             }
         }
@@ -162,7 +151,7 @@ public class Login {
                 .queryParam("username", username)
                 .queryParam("ip", srcIp)
                 .toUriString();
-        System.out.println("challengeUrl = " + challengeUrl);
+        log.info("challengeUrl = " + challengeUrl);
 
         Request request = new Request.Builder()
                 .url(challengeUrl)
@@ -177,7 +166,7 @@ public class Login {
         } catch (Exception e) {
             throw new BizException("无法连到校园网,请检查wifi是否连接校园网 或 在配置里开启自动选择校园网");
         }
-        System.out.println("challengeResponse = " + challengeResponse);
+        log.info("challengeResponse = " + challengeResponse);
 
         return challengeResponse.replaceAll(".*\"challenge\":\"([^\"]+)\".*", "$1");
     }
@@ -187,12 +176,12 @@ public class Login {
     private String getChksum() {
         String chksum = challenge + username;
         chksum += challenge + hmacMd5password;
-        chksum += challenge + ac_id;
+        chksum += challenge + acId;
         chksum += challenge + srcIp;
         chksum += challenge + n;
         chksum += challenge + type;
         chksum += challenge + info;
-        System.out.println("chksum = " + chksum);
+        log.info("chksum = " + chksum);
         MessageDigest messageDigest = MessageDigest.getInstance("SHA"); // 此处的sha代表sha1
         byte[] cipherBytes = messageDigest.digest(chksum.getBytes());
         String hexString = HexUtils.toHexString(cipherBytes);
@@ -200,7 +189,7 @@ public class Login {
     }
 
     private String getInfo() {
-        return EncryptionUtil.getEncryptedInfo(username, password, srcIp, ac_id, enc, challenge);
+        return EncryptionUtil.getEncryptedInfo(username, password, srcIp, acId, enc, challenge);
     }
 
     //生成加密后的密码
@@ -230,26 +219,26 @@ public class Login {
                 .queryParam("action", action)
                 .queryParam("username", username)
                 .queryParam("password", "{MD5}" + hmacMd5password)
-                .queryParam("ac_id", ac_id)
+                .queryParam("ac_id", acId)
                 .queryParam("ip", srcIp)
                 .queryParam("chksum", chksum)
                 .queryParam("n", n)
                 .queryParam("type", type)
                 .toUriString() + "&info=" + info.replace("+", "%2B").replace("/", "%2F");
-        System.out.println("loginUrl = " + loginUrl);
+        log.info("loginUrl = " + loginUrl);
 
-        System.out.println("callbackPrefix = " + callbackPrefix);
-        System.out.println("challenge = " + challenge);
-        System.out.println("action = " + action);
-        System.out.println("hmacMd5password = " + "{MD5}" + hmacMd5password);
-        System.out.println("chksum = " + chksum);
-        System.out.println("info = " + info);
-        System.out.println("ac_id = " + ac_id);
-        System.out.println("n = " + n);
-        System.out.println("type = " + type);
-        System.out.println("enc = " + enc);
-        System.out.println("srcIp = " + srcIp);
-        System.out.println("dstIp = " + dstIp);
+        log.info("callbackPrefix = " + callbackPrefix);
+        log.info("challenge = " + challenge);
+        log.info("action = " + action);
+        log.info("hmacMd5password = " + "{MD5}" + hmacMd5password);
+        log.info("chksum = " + chksum);
+        log.info("info = " + info);
+        log.info("acId = " + acId);
+        log.info("n = " + n);
+        log.info("type = " + type);
+        log.info("enc = " + enc);
+        log.info("srcIp = " + srcIp);
+        log.info("dstIp = " + dstIp);
 
         Request request = new Request.Builder()
                 .url(loginUrl)

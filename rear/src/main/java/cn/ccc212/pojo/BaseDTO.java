@@ -13,8 +13,6 @@ public class BaseDTO {
 
     private String password;
 
-    private String srcIp;
-
     private String dstIp;
 
     private String acId;

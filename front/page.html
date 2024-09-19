@@ -11,7 +11,7 @@
             margin: 0;
         }
 
-        .start-container, .config-container {
+        .start-container, .config-container, .log-container {
             padding: 40px 40px 0 40px;
             display: none;
             box-sizing: border-box;
@@ -119,13 +119,14 @@
 <div class="choose">
     <button class="change-btm" onclick="showStartPage()">登录</button>
     <button class="change-btm" onclick="showConfigPage()">配置</button>
+    <button class="change-btm" onclick="showLogPage()">日志</button>
 </div>
 <div class="start-container active" id="startPage">
     <h2>校园网自动登录</h2>
 
     <form id="startForm">
         <div class="form-group">
-            <label for="networkName">校园网名称</label>
+            <label for="networkName">Wifi名称</label>
             <input type="text" id="networkName" name="networkName" required placeholder="必填"/>
         </div>
 
@@ -140,17 +141,12 @@
         </div>
 
         <div class="form-group">
-            <label for="srcIp">用户IPv4地址</label>
-            <input type="text" id="srcIp" name="srcIp" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
-        </div>
-
-        <div class="form-group">
             <label for="dstIp">校园网IPv4地址</label>
             <input type="text" id="dstIp" name="dstIp" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
         </div>
 
         <div class="form-group">
-            <label for="dstIp">ac_id</label>
+            <label for="acId">ac_id</label>
             <input type="text" id="acId" name="acId" placeholder="如果校园网经过路由器分配wifi,则需填写"/>
         </div>
 
@@ -191,6 +187,10 @@
     </form>
 </div>
 
+<div class="log-container" id="logPage">
+    <div id="log" style="height: 400px; overflow-y: auto; background-color: #f4f4f4; padding: 10px; border: 1px solid #ccc;"></div>
+</div>
+
 <script>
     new Sys({
         log: true,
@@ -226,18 +226,45 @@
 
     function showConfigPage() {
         document.getElementById("startPage").classList.remove("active");
+        document.getElementById("logPage").classList.remove("active");
         document.getElementById("configPage").classList.add("active");
     }
 
     function showStartPage() {
-        document.getElementById("configPage").classList.remove("active");
+        document.getElementById("configPage").classList.remove("active")
+        document.getElementById("logPage").classList.remove("active");
         document.getElementById("startPage").classList.add("active");
+    }
+
+    function showLogPage() {
+        document.getElementById("startPage").classList.remove("active");
+        document.getElementById("configPage").classList.remove("active");
+        document.getElementById("logPage").classList.add("active");
+
+        const logElement = document.getElementById("log");
+        const eventSource = new EventSource('http://localhost:56565/logs');
+
+        eventSource.onmessage = function(event) {
+            const newLog = document.createElement('div');
+            newLog.textContent = event.data;
+            logElement.appendChild(newLog);
+            logElement.scrollTop = logElement.scrollHeight; //滚动到最新日志
+        };
+
+        eventSource.onerror = function() {
+            eventSource.close();
+            // const errorLog = document.createElement('div');
+            // errorLog.textContent = "连接失败或断开";
+            // logElement.appendChild(errorLog);
+        };
     }
 
     function change() {
         const networkName = document.getElementById("networkName").value;
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
+        const dstIp = document.getElementById("dstIp").value;
+        const acId = document.getElementById("acId").value;
 
         if (!networkName || !username || !password) {
             native.win.msgbox(`请确保校园网名称、账号和密码已填写`, `error`);
@@ -247,11 +274,19 @@
         if (isRunning) {
             stopService();
         } else {
-            startService(networkName, username, password, null, null, null);
+            startService(networkName, username, password, dstIp, acId);
         }
     }
 
-    async function startService(networkName, username, password, srcIp, dstIp, acId) {
+    async function startService(networkName, username, password, dstIp, acId) {
+        const ipv4 = document.getElementById('dstIp').value;
+        const ac_id = document.getElementById('acId').value;
+
+        if ((ipv4 && !ac_id) || (!ipv4 && ac_id)) {
+            native.win.msgbox('校园网IPv4地址和ac_id必须同时填写,或者都不填写', 'error');
+            return;
+        }
+
         try {
             const response = await fetch('http://localhost:56565/start', {
                 method: 'POST',
@@ -262,7 +297,6 @@
                     networkName: networkName,
                     username: username,
                     password: password,
-                    srcIp: srcIp,
                     dstIp: dstIp,
                     acId: acId
                 })
@@ -328,24 +362,23 @@
         const networkName = document.getElementById("networkName").value;
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
-        const srcIp = document.getElementById("srcIp").value;
         const dstIp = document.getElementById("dstIp").value;
+        const acId = document.getElementById("acId").value;
 
         const data = {
             networkName,
             username,
             password,
-            srcIp,
             dstIp,
+            acId
         };
 
         console.log("发送登录请求:", data);
 
         localStorage.setItem("networkName", networkName);
         localStorage.setItem("username", username);
-        localStorage.setItem("password", password);
-        localStorage.setItem("srcIp", srcIp);
         localStorage.setItem("dstIp", dstIp);
+        localStorage.setItem("acId", acId);
     }
 
     function startTimer() {
@@ -389,7 +422,7 @@
                 body: JSON.stringify(configDTO)
             });
             const result = await response.json();
-            native.win.msgbox(result.message, `info`);
+            // native.win.msgbox(result.message, `info`);
         } catch (error) {
             console.error('配置请求失败', error);
             native.win.msgbox('配置请求失败', `error`);

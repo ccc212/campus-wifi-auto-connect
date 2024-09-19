@@ -22,7 +22,7 @@ import java.security.MessageDigest;
 class CampusWifiAutoConnectApplicationTests {
 
     @Value("${wifi.name}")
-    private String wifiName;
+    private String networkName;
 
     @Autowired
     private Login login;
@@ -47,7 +47,7 @@ class CampusWifiAutoConnectApplicationTests {
 
     @Test
     public void testConnect() {
-        NetworkUtil.connectToWifi(wifiName);
+        NetworkUtil.connectToWifi(networkName);
     }
 
     @Test
@@ -73,13 +73,13 @@ class CampusWifiAutoConnectApplicationTests {
 
     @Test
     public void testLogin() {
-//        NetworkUtil.connectToWifi(wifiName);
+//        NetworkUtil.connectToWifi(networkName);
         System.out.println(login.login());
     }
 
     @Test
     @SneakyThrows
-    public void test() {
+    public void testRedirect() {
         String gatewayUrl = "http://" + "10.129.1.1";
         HttpURLConnection connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
         connection.setInstanceFollowRedirects(false);
@@ -87,31 +87,24 @@ class CampusWifiAutoConnectApplicationTests {
         String redirectHtml = connection.getHeaderField("Location");
         System.out.println("redirectHtml = " + redirectHtml);
 
-        HttpURLConnection connection2 = (HttpURLConnection) new URL(redirectHtml).openConnection();
-        connection2.setInstanceFollowRedirects(false);
-        connection2.connect();
-        String redirectHtml2 = connection2.getHeaderField("Location");
-        System.out.println("redirectHtml2 = " + redirectHtml2);
+        //访问页面并获取HTML内容
+        Document doc = Jsoup.connect(redirectHtml).get();
+        //查找页面中的跳转链接
+        Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
+        if (metaRefresh != null) {
+            //提取URL
+            String content = metaRefresh.attr("content");
+            String redirectUrl = content.split("url=")[1];
+            System.out.println("redirectUrl = " + content);
 
-//        //访问页面并获取HTML内容
-//        Document doc = Jsoup.connect(redirectHtml).get();
-//        //查找页面中的跳转链接
-//        Element metaRefresh = doc.selectFirst("meta[http-equiv=refresh]");
-//        if (metaRefresh != null) {
-//            //提取URL
-//            String content = metaRefresh.attr("content");
-//            String redirectUrl = content.split("url=")[1];
-//            System.out.println("redirectUrl = " + redirectUrl);
-//
-//            String[] queryParams = redirectUrl.split("\\?")[1].split("&");
-//            for (String queryParam : queryParams) {
-//                if (queryParam.startsWith("ac_id=")) {
-//                    System.out.println("queryParam = " + queryParam);
-//                    System.out.println(queryParam.split("=")[1]);
-//                    break;
-//                }
-//            }
-//        }
+            String[] queryParams = redirectUrl.split("\\?")[1].split("&");
+            for (String queryParam : queryParams) {
+                if (queryParam.startsWith("ac_id=")) {
+                    System.out.println(queryParam);
+                    break;
+                }
+            }
+        }
     }
 
 
