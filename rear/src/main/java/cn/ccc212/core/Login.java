@@ -1,6 +1,5 @@
 package cn.ccc212.core;
 
-import cn.ccc212.exception.BizException;
 import cn.ccc212.pojo.BaseDTO;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
@@ -50,7 +49,7 @@ public class Login {
     private OkHttpClient client = new OkHttpClient().newBuilder().build();
 
     public void getDefaultIp() {
-        srcIp = NetworkUtil.getIPv4();
+        srcIp = useRouter ? getRouterIp() : NetworkUtil.getIPv4();
         setDstIpAndAcId();
     }
 
@@ -85,9 +84,11 @@ public class Login {
 
     @SneakyThrows
     private void init() {
-        String ipv4 = NetworkUtil.getIPv4();
-        if (!srcIp.equals(ipv4) && !useRouter) {
-            srcIp = ipv4;
+        if (!useRouter) {
+            String ipv4 = NetworkUtil.getIPv4();
+            if (!srcIp.equals(ipv4)) {
+                srcIp = ipv4;
+            }
         }
         log.info("srcIp = " + srcIp);
         log.info("dstIp = " + dstIp);
@@ -113,11 +114,11 @@ public class Login {
         try {
             connection.connect();
         } catch (Exception e) {
-            throw new BizException("无法连接网关,可能还未连接到校园网,请关闭并重新启动自动登录;或是使用路由器却未设置acId");
+            log.error("无法连接网关,可能还未连接到校园网,请关闭并重新启动自动登录;或是使用路由器却未设置acId");
         }
         //获取跳转后的URL
         String redirectHtml = connection.getHeaderField("Location");
-        log.info("redirectHtml = " + redirectHtml);
+//        log.info("redirectHtml = " + redirectHtml);
         connection.disconnect();
 
         if (redirectHtml != null) {
@@ -151,7 +152,7 @@ public class Login {
                 .queryParam("username", username)
                 .queryParam("ip", srcIp)
                 .toUriString();
-        log.info("challengeUrl = " + challengeUrl);
+//        log.info("challengeUrl = " + challengeUrl);
 
         Request request = new Request.Builder()
                 .url(challengeUrl)
@@ -164,9 +165,9 @@ public class Login {
             response = client.newCall(request).execute();
             challengeResponse = response.body().string();
         } catch (Exception e) {
-            throw new BizException("无法连到校园网,请检查wifi是否连接校园网 或 在配置里开启自动选择校园网");
+            throw new RuntimeException("无法连到校园网,请检查wifi是否连接校园网 或 在配置里开启自动选择校园网");
         }
-        log.info("challengeResponse = " + challengeResponse);
+//        log.info("challengeResponse = " + challengeResponse);
 
         return challengeResponse.replaceAll(".*\"challenge\":\"([^\"]+)\".*", "$1");
     }
@@ -181,7 +182,7 @@ public class Login {
         chksum += challenge + n;
         chksum += challenge + type;
         chksum += challenge + info;
-        log.info("chksum = " + chksum);
+//        log.info("chksum = " + chksum);
         MessageDigest messageDigest = MessageDigest.getInstance("SHA"); // 此处的sha代表sha1
         byte[] cipherBytes = messageDigest.digest(chksum.getBytes());
         String hexString = HexUtils.toHexString(cipherBytes);
@@ -225,20 +226,20 @@ public class Login {
                 .queryParam("n", n)
                 .queryParam("type", type)
                 .toUriString() + "&info=" + info.replace("+", "%2B").replace("/", "%2F");
-        log.info("loginUrl = " + loginUrl);
-
-        log.info("callbackPrefix = " + callbackPrefix);
-        log.info("challenge = " + challenge);
-        log.info("action = " + action);
-        log.info("hmacMd5password = " + "{MD5}" + hmacMd5password);
-        log.info("chksum = " + chksum);
-        log.info("info = " + info);
-        log.info("acId = " + acId);
-        log.info("n = " + n);
-        log.info("type = " + type);
-        log.info("enc = " + enc);
-        log.info("srcIp = " + srcIp);
-        log.info("dstIp = " + dstIp);
+//        log.info("loginUrl = " + loginUrl);
+//
+//        log.info("callbackPrefix = " + callbackPrefix);
+//        log.info("challenge = " + challenge);
+//        log.info("action = " + action);
+//        log.info("hmacMd5password = " + "{MD5}" + hmacMd5password);
+//        log.info("chksum = " + chksum);
+//        log.info("info = " + info);
+//        log.info("acId = " + acId);
+//        log.info("n = " + n);
+//        log.info("type = " + type);
+//        log.info("enc = " + enc);
+//        log.info("srcIp = " + srcIp);
+//        log.info("dstIp = " + dstIp);
 
         Request request = new Request.Builder()
                 .url(loginUrl)

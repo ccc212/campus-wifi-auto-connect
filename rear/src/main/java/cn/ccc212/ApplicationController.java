@@ -62,25 +62,32 @@ public class ApplicationController {
         SseEmitter emitter = new SseEmitter();
 
         executorService.submit(() -> {
-            try (BufferedReader reader = new BufferedReader(new FileReader("application.log"))) {
-                String line;
-                long lastKnownPosition = 0;
-                while (true) {
-                    // 检查是否有新的日志行
-                    long fileLength = new File("application.log").length();
-                    if (fileLength > lastKnownPosition) {
+            long lastKnownPosition = 0;
+            File logFile = new File("application.log");
+
+            while (true) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(logFile))) {
+                    // 如果文件的大小大于上次读取的位置，说明有新的内容写入
+                    if (logFile.length() > lastKnownPosition) {
                         reader.skip(lastKnownPosition);
+
+                        String line;
                         while ((line = reader.readLine()) != null) {
                             emitter.send(SseEmitter.event().data(line));
                         }
-                        lastKnownPosition = fileLength;
+
+                        // 更新最后已知的文件位置
+                        lastKnownPosition = logFile.length();
                     }
+
                     // 等待一段时间后再检查
                     Thread.sleep(1000);
+                } catch (IOException | InterruptedException e) {
+                    emitter.completeWithError(e);
+                    break;
                 }
-            } catch (IOException | InterruptedException e) {
-                emitter.completeWithError(e);
             }
+
             emitter.complete();
         });
 

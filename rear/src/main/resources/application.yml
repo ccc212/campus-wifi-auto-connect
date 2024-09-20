@@ -9,18 +9,6 @@ wifi:
   username: "123"
 #  密码
   password: "123"
-#  用户IPv4地址
-  src_ip: ""
-#  校园网IPv4地址
-  dst_ip: ""
-#  启动时间
-  start_time: ""
-#  关闭时间
-  end_time: ""
-#  执行间隔（秒）
-  interval: ""
-#  是否开启自动选择校园网
-  auto_select: ""
 
 logging:
   file:

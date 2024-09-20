@@ -1,6 +1,5 @@
 package cn.ccc212.core;
 
-import cn.ccc212.exception.BizException;
 import cn.ccc212.pojo.ConfigDTO;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.Setter;
@@ -33,6 +32,7 @@ public class Check {
     @Autowired
     private TaskScheduler taskScheduler;
     private ScheduledFuture<?> futureTask;
+
     private LocalTime startTime = LocalTime.of(7, 0); //默认七点开始执行
     private LocalTime endTime = LocalTime.of(23, 30); //默认晚上十一点半关闭
     private long interval = 10 * 1000; //默认任务执行间隔10秒
@@ -44,7 +44,7 @@ public class Check {
 
         if (!StringUtil.isBlank((configDTO.getInterval()))) {
             if (interval < 5) {
-                throw new BizException("执行间隔不能小于5");
+                throw new RuntimeException("执行间隔不能小于5");
             }
             this.interval = interval * 1000;
         }
@@ -152,7 +152,7 @@ public class Check {
                 login.getDefaultIp();
                 startTask();
                 log.info("重新连接成功");
-            }, new Date(System.currentTimeMillis() + 2000)); //延迟2秒后执行
+            }, new Date(System.currentTimeMillis() + interval));
         }
     }
 }

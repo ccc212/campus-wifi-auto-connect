@@ -1,6 +1,5 @@
 package cn.ccc212.utils;
 
-import cn.ccc212.exception.BizException;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,7 +17,7 @@ public class NetworkUtil {
             String command = String.format("netsh wlan connect name=\"%s\"", ssid);
             Runtime.getRuntime().exec(command);
         } catch (IOException e) {
-            throw new BizException("连接到:" + ssid + "失败");
+            throw new RuntimeException("连接到:" + ssid + "失败");
         }
     }
 
@@ -59,7 +58,7 @@ public class NetworkUtil {
             profileName = matcher.group(1).trim();
         }
         else {
-            throw new BizException("未找到SSID");
+            throw new RuntimeException("未找到SSID");
         }
         return profileName;
     }
@@ -84,7 +83,7 @@ public class NetworkUtil {
                 }
             }
         } catch (IOException e) {
-            throw new BizException("IPv4获取异常:" + e.getMessage());
+            throw new RuntimeException("IPv4获取异常:" + e.getMessage());
         }
         return ipv4Address;
     }
