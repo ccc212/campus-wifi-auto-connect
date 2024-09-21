@@ -29,8 +29,7 @@ public class TailfLogThread extends Thread {
                 session.getBasicRemote().sendText(line + "<br>");
             }
             reader.close();
-        } catch (IOException e) {
-            log.error(e.getMessage());
+        } catch (IOException ignored) {
         }
     }
 }

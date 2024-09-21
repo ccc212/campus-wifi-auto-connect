@@ -3,6 +3,7 @@ package cn.ccc212.utils;
 import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.internal.StringUtil;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,7 +13,7 @@ public class EncryptionUtil {
 
     //TEA加密算法
     public static String encode(String str, String key) {
-        if (str.isEmpty()) return "";
+        if (StringUtil.isBlank(str) || StringUtil.isBlank(key)) return "";
         int[] v = s(str, true);
         int[] k = s(key, false);
         if (k.length < 4) k = new int[]{k[0], k[1], 0, 0}; // 确保key长度为4

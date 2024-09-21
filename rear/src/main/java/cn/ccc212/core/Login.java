@@ -1,6 +1,7 @@
 package cn.ccc212.core;
 
 import cn.ccc212.pojo.BaseDTO;
+import cn.ccc212.pojo.GlobalState;
 import cn.ccc212.utils.EncryptionUtil;
 import cn.ccc212.utils.NetworkUtil;
 import lombok.SneakyThrows;
@@ -26,7 +27,6 @@ import java.util.function.Supplier;
 @Component
 @Slf4j
 public class Login {
-    private String loginPage;
     private String callbackPrefix;
     private String challenge;
     private final String action = "login";
@@ -39,7 +39,6 @@ public class Login {
     private final String enc = "srun_bx1";
     private String srcIp;
     private String dstIp;
-    private boolean useRouter = false;
 
     @Value("${wifi.username}")
     private String username;
@@ -49,7 +48,7 @@ public class Login {
     private OkHttpClient client = new OkHttpClient().newBuilder().build();
 
     public void getDefaultIp() {
-        srcIp = useRouter ? getRouterIp() : NetworkUtil.getIPv4();
+        srcIp = GlobalState.useRouter ? getRouterIp() : NetworkUtil.getIPv4();
         setDstIpAndAcId();
     }
 
@@ -72,19 +71,19 @@ public class Login {
             setDstIpAndAcId();
         }
 
-        useRouter = !StringUtil.isBlank(dstIp) || !StringUtil.isBlank(acId);
-        srcIp = useRouter ? getRouterIp() : NetworkUtil.getIPv4();
+        GlobalState.useRouter = !StringUtil.isBlank(dstIp) || !StringUtil.isBlank(acId);
+        srcIp = GlobalState.useRouter ? getRouterIp() : NetworkUtil.getIPv4();
     }
 
     private String getRouterIp() {
         srcIp = NetworkUtil.getIPv4();
         String result = login();
-        return result.split("client_ip\":\"")[1].split("\"")[0];
+        return StringUtil.isBlank(result) ? result : result.split("client_ip\":\"")[1].split("\"")[0];
     }
 
     @SneakyThrows
     private void init() {
-        if (!useRouter) {
+        if (!GlobalState.useRouter) {
             String ipv4 = NetworkUtil.getIPv4();
             if (!srcIp.equals(ipv4) && StringUtil.isBlank(ipv4)) {
                 srcIp = ipv4;
@@ -94,7 +93,6 @@ public class Login {
         log.info("dstIp = " + dstIp);
         log.info("acId = " + acId);
         callbackPrefix = "jQuery112405644064296283513";
-        loginPage = "http://" + dstIp + "/srun_portal_pc?acId=" + acId + "&theme=bit";
         challenge = getChallenge();
         info = getInfo();
         hmacMd5password = hmacMd5("", challenge);
@@ -200,6 +198,9 @@ public class Login {
     //生成加密后的密码
     @SneakyThrows
     public static String hmacMd5(String password, String challenge) {
+        if (StringUtil.isBlank(challenge)) {
+            return "";
+        }
         SecretKeySpec keySpec = new SecretKeySpec(challenge.getBytes(), "HmacMD5");
 
         Mac mac = Mac.getInstance("HmacMD5");
@@ -250,7 +251,13 @@ public class Login {
                 .get()
                 .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0")
                 .build();
-        Response response = client.newCall(request).execute();
+        Response response = null;
+        try {
+            response = client.newCall(request).execute();
+        } catch (IOException e) {
+            log.error("请求失败，异常信息为：" + e.getMessage());
+            return "";
+        }
         return response.body().string();
     }
 }

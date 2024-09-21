@@ -189,7 +189,7 @@
             </select>
         </div>
 
-        <button type="button" class="save-button" onclick="saveConfig()">保存配置</button>
+        <button type="button" class="save-button" onclick="saveConfig(false)">保存配置</button>
     </form>
 </div>
 
@@ -214,18 +214,23 @@
     <p>如图所示，最前面的<b>10.129.1.1</b>即为<b>校园网IPv4地址</b>，后面的<b>17</b>即为<b>ac_id</b></p>
     <hr>
     <h3>3.配置</h3>
+    <p>若启动时间和关闭时间相同，则全天运行</p>
+    <p>点击保存配置后，会立即生效</p>
     <p><b>启动时间：</b>每天启动的开始时间，默认值为07:00，即每天到七点时启动自动连接校园网</p>
-    <p><b>关闭时间：</b>每天关闭的时间，默认值为23:30，当小于启动时间时，则运行时间为启动时3间到24:00再到关闭时间</p>
-    <p><b>执行间隔（秒）：</b>检查是否连接到校园网的执行间隔，此值不能小于5，默认值为10</p>
-    <p><b>自动选择校园网</b>开启后，连接了其他网络上网，也会重新连接到校园网，默认为开启</p>
+    <p><b>关闭时间：</b>每天关闭的时间，默认值为23:30，当小于启动时间时，则运行时间为启动时间到24:00再到关闭时间</p>
+    <p><b>执行间隔(秒)：</b>检查是否连接到校园网的执行间隔，此值不能小于5，默认值为10</p>
+    <p><b>自动选择校园网：</b>开启后，连接了其他网络上网，也会重新连接到校园网，默认为开启</p>
     <hr>
     <h3>4.日志</h3>
-    <p>查看运行状况，只展示最近500条数据，每次关闭应用都会清空日志</p>
+    <p>查看运行状况，只展示最近500条数据，每天凌晨3点清理一次日志</p>
     <p><b>ssid：</b>连接的wifi的名称</p>
     <p><b>wifiConnected：</b>上网状态，true为能上网</p>
     <p><b>srcIp：</b>校园网分配的IPv4地址，如果是直连则为本地IPv4地址，如果是校园网通过路由器分配则为路由器的IPv4地址</p>
     <p><b>dstIp：</b>校园网IPv4地址</p>
     <p><b>acId：</b>ac_id的值</p>
+    <h3>其他</h3>
+    <p>文件路径不能有空格和中文</p>
+    <p>叉掉软件，原来的运行状态会保留，所以要关闭自动连接需点击关闭按钮，直接叉掉不会关闭</p>
 </div>
 
 <script>
@@ -240,9 +245,9 @@
     let isRunning = false;
     let timerId = null;
     let startTime = null;
-    let initSaved = false;
 
     window.onload = function () {
+
         //默认值
         if (!localStorage.getItem("saveInfo")) {
             localStorage.setItem("saveInfo", false);
@@ -258,6 +263,15 @@
         }
         if (!localStorage.getItem("autoSelect")) {
             localStorage.setItem("autoSelect", "true");
+        }
+        if (localStorage.getItem("isRunning") === "true") {
+            document.getElementById("changeButton").textContent = "关闭";
+            document.getElementById("changeButton").classList.remove("start-button");
+            document.getElementById("changeButton").classList.add("stop-button");
+            document.getElementById("timer").style.display = "block";
+            startTime = new Date();
+            isRunning = true;
+            startTimer();
         }
 
         if (localStorage.getItem("saveInfo") === "true") {
@@ -276,9 +290,7 @@
     };
 
     window.onbeforeunload = function () {
-        fetch("http://localhost:56565/clear", {
-            method: 'GET'
-        });
+        saveToLocal();
         websocket.close();
     }
 
@@ -313,7 +325,7 @@
         document.getElementById("instructionPage").classList.add("active");
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function initWebsocket() {
         var websocket = new WebSocket('ws://localhost:56565/log');
         var logText = document.getElementById('logText');
         var logDiv = logText.querySelector('div');
@@ -327,13 +339,20 @@
             logDiv.innerHTML = logEntries.join('<br>');
             logText.scrollTop = logText.scrollHeight;
         };
+
+        websocket.onerror = function() {
+            initWebsocket()
+        }
+        websocket.onclose = function() {
+            initWebsocket()
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initWebsocket()
     });
 
-    function change() {
-        if (!initSaved) {
-            saveConfig();
-        }
-
+    function saveToLocal() {
         const networkName = document.getElementById("networkName").value;
         const username = document.getElementById("username").value;
         const password = document.getElementById("password").value;
@@ -342,6 +361,7 @@
         const saveInfo = document.getElementById("saveInfo").checked;
 
         localStorage.setItem("saveInfo", saveInfo);
+        localStorage.setItem("isRunning", isRunning);
         if (saveInfo  === true) {
             localStorage.setItem("networkName", networkName);
             localStorage.setItem("username", username);
@@ -349,6 +369,15 @@
             localStorage.setItem("dstIp", dstIp);
             localStorage.setItem("acId", acId);
         }
+    }
+
+    function change() {
+        saveConfig(true);
+        const networkName = document.getElementById("networkName").value;
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        const dstIp = document.getElementById("dstIp").value;
+        const acId = document.getElementById("acId").value;
 
         if (!networkName || !username || !password) {
             native.win.msgbox(`请确保校园网名称、账号和密码已填写`, `error`);
@@ -361,6 +390,8 @@
         else {
             startService(networkName, username, password, dstIp, acId);
         }
+
+        saveToLocal()
     }
 
     async function startService(networkName, username, password, dstIp, acId) {
@@ -371,6 +402,14 @@
             native.win.msgbox('校园网IPv4地址和ac_id必须同时填写,或者都不填写', 'error');
             return;
         }
+
+        // 更新按钮和定时器状态
+        document.getElementById("changeButton").textContent = "关闭";
+        document.getElementById("changeButton").classList.remove("start-button");
+        document.getElementById("changeButton").classList.add("stop-button");
+        document.getElementById("timer").style.display = "block";
+        startTime = new Date();
+        startTimer();
 
         try {
             const response = await fetch('http://localhost:56565/start', {
@@ -387,25 +426,15 @@
                 })
             });
 
-            console.log("response:", response)
-            console.log("response.ok:", response.ok)
-            console.log("response.body:", response.body)
-            console.log("response.status:", response.status)
-            console.log("response.type:", response.type)
-            console.log("response.url:", response.url)
-
             if (response.ok) {
                 const result = await response.json();
-                native.win.msgbox(result.data, "info");
-
-                // 更新按钮和定时器状态
-                document.getElementById("changeButton").textContent = "关闭";
-                document.getElementById("changeButton").classList.remove("start-button");
-                document.getElementById("changeButton").classList.add("stop-button");
-                document.getElementById("timer").style.display = "block";
-                startTime = new Date();
-                isRunning = true;
-                startTimer();
+                if (result.code == 1) {
+                    native.win.msgbox(result.data, "info");
+                    isRunning = true;
+                }
+                else {
+                    native.win.msgbox(result.msg, "error");
+                }
             } else {
                 const error = await response.json();
                 native.win.msgbox(error.data, "error");
@@ -418,6 +447,17 @@
 
     async function stopService() {
         try {
+            // 更新按钮和定时器状态
+            const button = document.getElementById("changeButton");
+            button.textContent = "启动";
+            button.classList.remove("stop-button");
+            button.classList.add("start-button");
+            const timerElement = document.getElementById("timer");
+            timerElement.style.display = "none";
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+            }
             const response = await fetch('http://localhost:56565/stop', {
                 method: 'POST'
             });
@@ -425,20 +465,7 @@
             if (response.ok) {
                 const result = await response.json();
                 native.win.msgbox(result.data, "info");
-
-                // 更新按钮和定时器状态
-                const button = document.getElementById("changeButton");
-                button.textContent = "启动";
-                button.classList.remove("stop-button");
-                button.classList.add("start-button");
-                const timerElement = document.getElementById("timer");
-                timerElement.style.display = "none";
-                if (timerId) {
-                    clearInterval(timerId);
-                    timerId = null;
-                }
                 isRunning = false;
-                console.log("停止");
             } else {
                 const error = await response.json();
                 native.win.msgbox(error.data, "error");
@@ -463,7 +490,7 @@
         }, 1000);
     }
 
-    async function saveConfig() {
+    async function saveConfig(init) {
         const startTime = document.getElementById("startTime").value;
         const endTime = document.getElementById("endTime").value;
         const interval = document.getElementById("interval").value;
@@ -490,11 +517,8 @@
                 body: JSON.stringify(configDTO)
             });
             const result = await response.json();
-            if (initSaved === true) {
+            if (init === false) {
                 native.win.msgbox(result.data, `info`);
-            }
-            else {
-                initSaved = true;
             }
         } catch (error) {
             console.error('配置请求失败', error);

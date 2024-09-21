@@ -28,8 +28,7 @@ public class NetworkUtil {
         int result = 0;
         try {
             result = process.waitFor();
-        } catch (InterruptedException e) {
-            log.info("停止");
+        } catch (InterruptedException ignored) {
         }
         return result == 0;
     }
