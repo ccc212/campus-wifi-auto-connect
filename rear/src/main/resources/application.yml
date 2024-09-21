@@ -12,4 +12,6 @@ wifi:
 
 logging:
   file:
-    name: application.log
+    name: ./cwac/application.log
+  pattern:
+    file: "%d{MM-dd HH:mm:ss} %-5level : %m%n"

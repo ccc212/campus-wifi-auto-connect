@@ -17,7 +17,7 @@ public class NetworkUtil {
             String command = String.format("netsh wlan connect name=\"%s\"", ssid);
             Runtime.getRuntime().exec(command);
         } catch (IOException e) {
-            throw new RuntimeException("连接到:" + ssid + "失败");
+            log.error("连接到：" + ssid + "失败，异常信息为：" + e.getMessage());
         }
     }
 
@@ -52,13 +52,12 @@ public class NetworkUtil {
         Pattern pattern = Pattern.compile("配置文件\\s+:\\s+(.+)");
         Matcher matcher = pattern.matcher(result);
         String profileName;
-        // 检查是否找到匹配
         if (matcher.find()) {
-            // 提取匹配的内容
             profileName = matcher.group(1).trim();
         }
         else {
-            throw new RuntimeException("未找到SSID");
+            log.error("未找到SSID");
+            return "";
         }
         return profileName;
     }
@@ -68,7 +67,8 @@ public class NetworkUtil {
         try {
             process = Runtime.getRuntime().exec("ipconfig");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error(e.getMessage());
+            return "";
         }
         BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         String line;
@@ -83,7 +83,8 @@ public class NetworkUtil {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("IPv4获取异常:" + e.getMessage());
+            log.error("IPv4获取异常:" + e.getMessage());
+            return "";
         }
         return ipv4Address;
     }

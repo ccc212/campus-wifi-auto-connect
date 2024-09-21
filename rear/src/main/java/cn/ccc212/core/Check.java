@@ -44,7 +44,8 @@ public class Check {
 
         if (!StringUtil.isBlank((configDTO.getInterval()))) {
             if (interval < 5) {
-                throw new RuntimeException("执行间隔不能小于5");
+                log.error("执行间隔不能小于5");
+                return;
             }
             this.interval = interval * 1000;
         }
@@ -138,6 +139,7 @@ public class Check {
 
     private void check() {
         String ssid = NetworkUtil.getSSID(NetworkUtil.checkWifiStatus());
+        if (StringUtil.isBlank(ssid)) return;
         boolean wifiConnected = NetworkUtil.isWifiConnected();
         log.info("ssid = " + ssid);
         log.info("wifiConnected = " + wifiConnected);

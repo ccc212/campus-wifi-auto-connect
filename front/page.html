@@ -194,26 +194,38 @@
 </div>
 
 <div class="log-container" id="logPage">
-    <div id="log" style="height: 400px; overflow-y: auto; background-color: #f4f4f4; padding: 10px; border: 1px solid #ccc;"></div>
+    <div id="logText" style="height: 400px; overflow-y: auto; background-color: #f4f4f4; padding: 10px; border: 1px solid #ccc;">
+        <div>
+        </div>
+    </div>
 </div>
 
 <div class="instruction-container" id="instructionPage">
     <h2>使用说明</h2>
+    <hr>
     <h3>1.校园网直连</h3>
     <p>填入wifi名称，即校园网名称或路由器wifi名称，并填入账号密码，即可启动</p>
+    <hr>
     <h3>2.校园网通过路由器分配</h3>
     <p>除填入必填的三个，还需要填入<b>校园网IPv4地址</b>和<b>ac_id</b>，两个都需填写，只填一个不行</p>
     <b>校园网IPv4地址和ac_id获取方式：</b>
     <p>连接校园网后，会弹出登录页面，查看url</p>
-    <img src="./url.png" alt="url">
+    <img src="./cwac/url.png" alt="url">
     <p>如图所示，最前面的<b>10.129.1.1</b>即为<b>校园网IPv4地址</b>，后面的<b>17</b>即为<b>ac_id</b></p>
+    <hr>
     <h3>3.配置</h3>
     <p><b>启动时间：</b>每天启动的开始时间，默认值为07:00，即每天到七点时启动自动连接校园网</p>
-    <p><b>关闭时间：</b>每天关闭的时间，默认值为23:30，当小于启动时间时，则运行时间为启动时间到24:00再到关闭时间</p>
+    <p><b>关闭时间：</b>每天关闭的时间，默认值为23:30，当小于启动时间时，则运行时间为启动时3间到24:00再到关闭时间</p>
     <p><b>执行间隔（秒）：</b>检查是否连接到校园网的执行间隔，此值不能小于5，默认值为10</p>
     <p><b>自动选择校园网</b>开启后，连接了其他网络上网，也会重新连接到校园网，默认为开启</p>
+    <hr>
     <h3>4.日志</h3>
-    <p>查看运行状况，只展示最前面500条数据</p>
+    <p>查看运行状况，只展示最近500条数据，每次关闭应用都会清空日志</p>
+    <p><b>ssid：</b>连接的wifi的名称</p>
+    <p><b>wifiConnected：</b>上网状态，true为能上网</p>
+    <p><b>srcIp：</b>校园网分配的IPv4地址，如果是直连则为本地IPv4地址，如果是校园网通过路由器分配则为路由器的IPv4地址</p>
+    <p><b>dstIp：</b>校园网IPv4地址</p>
+    <p><b>acId：</b>ac_id的值</p>
 </div>
 
 <script>
@@ -263,6 +275,13 @@
         document.getElementById("autoSelect").value = localStorage.getItem("autoSelect");
     };
 
+    window.onbeforeunload = function () {
+        fetch("http://localhost:56565/clear", {
+            method: 'GET'
+        });
+        websocket.close();
+    }
+
     function showConfigPage() {
         document.getElementById("startPage").classList.remove("active");
         document.getElementById("logPage").classList.remove("active");
@@ -283,36 +302,8 @@
         document.getElementById("instructionPage").classList.remove("active");
         document.getElementById("logPage").classList.add("active");
 
-        const logElement = document.getElementById("log");
-        const eventSource = new EventSource('http://localhost:56565/logs');
-
-        eventSource.onmessage = function(event) {
-            // 将日志消息按行分割为数组
-            const logEntries = event.data.split('\n');
-
-            logEntries.forEach(log => {
-                if (log.trim()) { // 确保不是空行
-                    const newLog = document.createElement('div');
-                    newLog.textContent = log;
-                    logElement.appendChild(newLog);
-
-                    // 检查当前日志条目的数量
-                    if (logElement.childElementCount > 500) {
-                        // 超过 500 条，删除最早的条目
-                        logElement.removeChild(logElement.firstChild);
-                    }
-                }
-            });
-
-            logElement.scrollTop = logElement.scrollHeight; //滚动到最新日志
-        };
-
-        eventSource.onerror = function() {
-            eventSource.close();
-            // const errorLog = document.createElement('div');
-            // errorLog.textContent = "连接失败或断开";
-            // logElement.appendChild(errorLog);
-        };
+        const logElement = document.getElementById("logText");
+        logElement.scrollTop = logElement.scrollHeight; //滚动到最新日志
     }
 
     function showInstructionPage() {
@@ -321,6 +312,22 @@
         document.getElementById("startPage").classList.remove("active");
         document.getElementById("instructionPage").classList.add("active");
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var websocket = new WebSocket('ws://localhost:56565/log');
+        var logText = document.getElementById('logText');
+        var logDiv = logText.querySelector('div');
+        var logEntries = []; //用来保存日志数据
+
+        websocket.onmessage = function(event) {
+            logEntries.push(event.data);
+            if (logEntries.length > 500) {
+                logEntries.shift();
+            }
+            logDiv.innerHTML = logEntries.join('<br>');
+            logText.scrollTop = logText.scrollHeight;
+        };
+    });
 
     function change() {
         if (!initSaved) {

@@ -86,7 +86,7 @@ public class Login {
     private void init() {
         if (!useRouter) {
             String ipv4 = NetworkUtil.getIPv4();
-            if (!srcIp.equals(ipv4)) {
+            if (!srcIp.equals(ipv4) && StringUtil.isBlank(ipv4)) {
                 srcIp = ipv4;
             }
         }
@@ -107,14 +107,16 @@ public class Login {
         try {
             connection = (HttpURLConnection) new URL(gatewayUrl).openConnection();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error(e.getMessage());
+            return;
         }
         //设置重定向跟随行为
         connection.setInstanceFollowRedirects(false);
         try {
             connection.connect();
         } catch (Exception e) {
-            log.error("无法连接网关,可能还未连接到校园网,请关闭并重新启动自动登录;或是使用路由器却未设置acId");
+            log.error("无法连接网关，可能还未连接到校园网，请关闭并重新启动自动登录;或是使用路由器却未设置acId，异常信息为：" + e.getMessage());
+            return;
         }
         //获取跳转后的URL
         String redirectHtml = connection.getHeaderField("Location");
@@ -125,7 +127,8 @@ public class Login {
             try {
                 dstIp = new URL(redirectHtml).getHost();
             } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
+                log.error(e.getMessage());
+                return;
             }
             setAcId(redirectHtml);
         } else {
@@ -165,7 +168,8 @@ public class Login {
             response = client.newCall(request).execute();
             challengeResponse = response.body().string();
         } catch (Exception e) {
-            throw new RuntimeException("无法连到校园网,请检查wifi是否连接校园网 或 在配置里开启自动选择校园网");
+            log.error("无法连到校园网，请检查wifi是否连接校园网 或 在配置里开启自动选择校园网，异常信息为：" + e.getMessage());
+            return "";
         }
 //        log.info("challengeResponse = " + challengeResponse);
 
